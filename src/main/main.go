@@ -9,11 +9,21 @@ import (
 	"net/http"
 	"labix.org/v2/mgo"
 	"documents"
+	"utils"
+	"session"
+	"time"
 )
-
+const (
+	COOKIE_NAME = "sessionId"
+)
 var postsCollection *mgo.Collection
+var inMemorySession *session.Session
 
-func index_handler(rnd render.Render) {
+func index_handler(rnd render.Render, request *http.Request) {
+	cookie, _ := request.Cookie(COOKIE_NAME)
+	if cookie != nil {
+		fmt.Println(inMemorySession.Get(cookie.Value))
+	}
 	postDocuments := []documents.PostDocument{}
 	postsCollection.Find(nil).All(&postDocuments)
 	posts := []models.Post{}
@@ -48,14 +58,14 @@ func save_post_handler(rnd render.Render, request *http.Request) {
 	title := request.FormValue("title")
 	content_markdown := request.FormValue("content")
 
-	content_html := MarcdownToHTML(content_markdown)
+	content_html := utils.MarcdownToHTML(content_markdown)
 
 	postDocument := documents.PostDocument{id, title, content_html, content_markdown}
 	if id != "" {
 		postsCollection.UpdateId(id, postDocument)
 
 	} else {
-		id := GenerateId()
+		id := utils.GenerateId()
 		postDocument.Id = id
 		postsCollection.Insert(postDocument )
 	}
@@ -81,19 +91,43 @@ func delete_handler(rnd render.Render, request *http.Request, params martini.Par
 
 func getHTML(rnd render.Render, request *http.Request) {
 	md := request.FormValue("md")
-	html := MarcdownToHTML(md)
+	html := utils.MarcdownToHTML(md)
 	rnd.JSON(200, map[string]interface{}{"html": string(html)})
+}
+
+func getLoginHandler(rnd render.Render){
+	rnd.HTML(200, "login", nil)
+}
+
+func postLoginHandler(rnd render.Render, response http.ResponseWriter, request *http.Request){
+	username := request.FormValue("username")
+	password := request.FormValue("password")
+
+	sessionId := inMemorySession.Init(username)
+	fmt.Println(password)
+
+	cookie := &http.Cookie{
+		Name: COOKIE_NAME,
+		Value:sessionId,
+		Expires: time.Now().Add(5 * time.Minute),
+	}
+
+	http.SetCookie(response, cookie)
+
+	rnd.Redirect("/", 302)
 }
 
 func main() {
 
-	session, err := mgo.Dial("localhost")
+	sessionDB, err := mgo.Dial("localhost")
 
 	if err!=nil{
 		panic(err)
 	}
 
-	postsCollection = session.DB("blog").C("posts")
+	inMemorySession = session.NewSession()
+
+	postsCollection = sessionDB.DB("blog").C("posts")
 
 	m := martini.Classic()
 
@@ -112,6 +146,8 @@ func main() {
 	m.Use(martini.Static("assets", staticOptions))
 	m.Get("/", index_handler)
 	m.Get("/write", write_handler)
+	m.Get("/login", getLoginHandler)
+	m.Post("/login", postLoginHandler)
 	m.Get("/edit/:id", edit_handler)
 	m.Get("/delete/:id", delete_handler)
 	m.Post("/save_post", save_post_handler)
