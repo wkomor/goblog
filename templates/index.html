@@ -3,7 +3,13 @@
 	<div class="col-xs-2">
 	</div>
 	<div class="col-xs-8">
-		<h1><a href="/edit/{{ $value.Id }}">{{ $value.Title }}</a></h1>
+		{{ if $.IsAutorized }}
+		<h1><a href="/view/{{ $value.Id }}">{{ $value.Title }}</a></h1>
+		<br>
+		<a href="/edit/{{ $value.Id }}">Edit</a>
+		{{ else }}
+		<h1><a href="/view/{{ $value.Id }}">{{ $value.Title }}</a></h1>
+		{{ end }}
 	</div>
 	<div class="col-xs-2">
 	</div>
@@ -17,4 +23,5 @@
 	<div class="col-xs-2">
 	</div>
 </div>
+<hr>
 {{ end }}

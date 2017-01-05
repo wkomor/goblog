@@ -24,3 +24,8 @@ type EditPostModel struct {
 	BaseModel
 	Post Post
 }
+
+type ViewPostModel struct {
+	BaseModel
+	Post Post
+}
